@@ -1,3 +1,4 @@
+from typing import Counter
 from selenium import webdriver
 from bs4 import BeautifulSoup
 import time
@@ -14,6 +15,9 @@ class KickStarterBot:
         self.project_launch_date = None
         self.project_successfull_date = None
         self.project_fund = None
+        self.project_location = None
+        self.category = None
+        self.location = None
         self.project_status = 'inprogress'
         self.discover()
 
@@ -81,30 +85,64 @@ class KickStarterBot:
         """
         Parse project title
         """
-        self.driver.get(link)
-        time.sleep(TIME+3)
         page_source = self.driver.page_source
         soup = BeautifulSoup(page_source, 'lxml')
         self.title = soup.find_all('h2')[0].text
 
         return self.title
     
+    def parse_project_loc_cat(self, link):
+        """
+            Parse project location and category
+        """
+
+        tag_bar = self.driver.find_elements_by_xpath("//div[@class='py2 py3-lg flex items-center auto-scroll-x']")[0]
+        tags = tag_bar.text.split('\n')
+
+        if(tags[0] == "Project We Love"):
+            self.category = tags[1]
+            self.location = tags[2]
+        else:
+            self.category = tags[0]
+            self.location = tags[1]
+
+        if(self.category == None and self.location == None):
+            self.parse_project_loc_cat(link)
+
+        return (self.location, self.category)
+
+    def go_to_project(self, link):
+        """
+        Go to a project page
+        """
+        self.driver.get(link)
+        time.sleep(TIME + 3)
+
+    def goal_and_raised(self):
+        goal = self.driver.find_elements_by_xpath("//span[@class='money']")[0].text
+
     def parse(self, link):
         """
-        Parsing each element in the home page for details. 
+        Parsing for details. 
         """
-        self.parse_title(link)
-        self.parse_update_section(link)
-        self.parse_community_section(link)
+        self.go_to_project(link)
+        #self.parse_title(link)
+        #self.parse_update_section(link)
+        #self.parse_community_section(link)
+        #self.parse_project_loc_cat(link)
+        self.self.goal_and_raised(link)
 
         payload = {
             'url': link,
             'title': self.title,
             'auther': self.author_name,
-            'project_launched': self.project_launch_date,
-            'project_successfull_date': self.project_successfull_date,
-            'project_fund': self.project_fund,
-            'project_status': self.project_status
+            'launched': self.project_launch_date,
+            'successfull_date': self.project_successfull_date,
+            'fund': self.project_fund,
+            'status': self.project_status,
+            'location': self.project_location,
+            'category': self.category,
+            'location': self.location
         }
         print(payload)
 
