@@ -18,6 +18,9 @@ class KickStarterBot:
         self.project_location = None
         self.category = None
         self.location = None
+        self.raised = None
+        self.goal = None
+        self.backers = None
         self.project_status = 'inprogress'
         self.discover()
 
@@ -116,11 +119,20 @@ class KickStarterBot:
         Go to a project page
         """
         self.driver.get(link)
-        time.sleep(TIME + 3)
+        time.sleep(TIME + 4)
 
-    def goal_and_raised(self):
-        goal = self.driver.find_elements_by_xpath("//span[@class='money']")[0].text
+    def goal_and_raised_backers(self, link):
+        """
+        Parse goal, raised and backers
+        """
+        raised_item = self.driver.find_elements_by_xpath('//span[@class="ksr-green-500"]')[0].text
+        self.raised = raised_item.split(' ')[1]
+        goal_item = self.driver.find_elements_by_xpath("//span[@class='block dark-grey-500 type-12 type-14-md lh3-lg']")[0].text
+        self.goal = goal_item.split(' ')[3]
+        self.backers = self.driver.find_elements_by_xpath('//div[@class="block type-16 type-28-md bold dark-grey-500"]/span')[0].text
 
+        return (self.goal, self.raised, self.backers)
+        
     def parse(self, link):
         """
         Parsing for details. 
@@ -130,7 +142,7 @@ class KickStarterBot:
         #self.parse_update_section(link)
         #self.parse_community_section(link)
         #self.parse_project_loc_cat(link)
-        self.self.goal_and_raised(link)
+        self.goal_and_raised_backers(link)
 
         payload = {
             'url': link,
@@ -142,7 +154,10 @@ class KickStarterBot:
             'status': self.project_status,
             'location': self.project_location,
             'category': self.category,
-            'location': self.location
+            'location': self.location,
+            'goal': self.goal,
+            'raised': self.raised,
+            'backers': self.backers
         }
         print(payload)
 
