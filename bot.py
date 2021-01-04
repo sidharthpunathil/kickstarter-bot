@@ -39,6 +39,7 @@ class KickStarterBot:
         self.spreadsheet_setup()
         self.discover()
 
+        
     def spreadsheet_setup(self):
         scope = [
                 'https://spreadsheets.google.com/feeds',
@@ -101,21 +102,28 @@ class KickStarterBot:
         Parse the update section
         Parse Project launch date, Project fund and Project funds successfully date
         """
-
         try:
-            self.driver.find_element_by_xpath("//*[@id='updates-emoji']").click() # Go to Updates section
-            time.sleep(TIME+2)
-            
-            all_divs_in_current_page = self.driver.find_elements_by_tag_name('div')
-            for index, each in enumerate(all_divs_in_current_page):
-                if(each.text=="Project launches"):
-                    self.project_launch_date = all_divs_in_current_page[index+1].text
-                if(each.text=="Project funds successfully"):
-                    self.project_successfull_fund = all_divs_in_current_page[index+1].text.split('$')[-1:]
-                    self.project_successfull_date = all_divs_in_current_page[index+2].text
-                    self.project_status = "successfull"                
+            no_updates = self.driver.find_element_by_xpath("//*[@id='project-post-interface']/div/h3").text
+            if(type(no_updates)==str):
+                print("no_update_page_reload_yes")
+                self.parse(link)
+            else:
+                print("no_update_page_reload_no")
         except:
-            print("parse_update_section exception.")
+            try:
+                self.driver.find_element_by_xpath("//*[@id='updates-emoji']").click() # Go to Updates section
+                time.sleep(TIME+2)
+                
+                all_divs_in_current_page = self.driver.find_elements_by_tag_name('div')
+                for index, each in enumerate(all_divs_in_current_page):
+                    if(each.text=="Project launches"):
+                        self.project_launch_date = all_divs_in_current_page[index+1].text
+                    if(each.text=="Project funds successfully"):
+                        self.project_successfull_fund = all_divs_in_current_page[index+1].text.split('$')[-1:]
+                        self.project_successfull_date = all_divs_in_current_page[index+2].text
+                        self.project_status = "successfull"                
+            except:
+                print("parse_update_section exception.")
 
         if(self.project_launch_date == None):
             time.sleep(1)
@@ -168,26 +176,29 @@ class KickStarterBot:
         Parse goal, raised and backers
         """
         
-        raised_item = self.driver.find_elements_by_xpath('//span[@class="ksr-green-500"]')[0].text
         try:
-           self.raised = raised_item.split('$')[1]
+            raised_item = self.driver.find_elements_by_xpath('//span[@class="ksr-green-500"]')[0].text
+            self.raised = raised_item.split('$')[1]
         except IndexError:
             print(link)
-            raised_item = self.driver.find_elements_by_xpath('//span[@class="ksr-green-500"]')[1].text
-            self.raised = raised_item.split('$')[1]
+            print("goal_and_raised_backers__raised_exception.")
+        except:
+            print("goal_and_raised_backers__raised_exception.")
+            
+        try:
+            goal_item = self.driver.find_elements_by_xpath("//span[@class='block dark-grey-500 type-12 type-14-md lh3-lg']")[0].text
+            self.goal = goal_item.split(' ')[3]
+            self.backers = self.driver.find_elements_by_xpath('//div[@class="block type-16 type-28-md bold dark-grey-500"]/span')[0].text            
 
-        goal_item = self.driver.find_elements_by_xpath("//span[@class='block dark-grey-500 type-12 type-14-md lh3-lg']")[0].text
-        self.goal = goal_item.split(' ')[3]
+            if(self.goal!=None and self.goal=="goal"):
+                self.goal = goal_item.split(' ')[2]
+            if(self.goal!=None and self.goal[:1]!='$'):
+                self.goal = '${}'.format(self.goal)
+            if(self.raised!=None and self.raised[1:]!='$'):
+                self.raised = '${}'.format(self.raised)
+        except:
+            print("goal_and_raised_backers__goal_exception.")
         
-        self.backers = self.driver.find_elements_by_xpath('//div[@class="block type-16 type-28-md bold dark-grey-500"]/span')[0].text            
-        
-        if(self.goal=="goal"):
-            self.goal = goal_item.split(' ')[2]
-        if(self.goal[:1]!='$'):
-            self.goal = '${}'.format(self.goal)
-        if(self.raised[1:]!='$'):
-            self.raised = '${}'.format(self.raised)
-
         return (self.goal, self.raised, self.backers)
         
     def print_data(self, link):
@@ -229,7 +240,6 @@ class KickStarterBot:
         """
         Parsing for details. 
         """
-        
         self.go_to_project(link)
         self.parse_title(link)
         self.goal_and_raised_backers(link)
