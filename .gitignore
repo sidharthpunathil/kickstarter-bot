@@ -1,3 +1,5 @@
 env/*
-docs.txt
+edgedriver_win64
+edgedriver_win64/*
+credentials.json
 edgedriver_win64.zip

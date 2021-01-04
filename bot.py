@@ -1,15 +1,28 @@
-from typing import Counter
+from gspread import client
 from selenium import webdriver
 from bs4 import BeautifulSoup
+from oauth2client.service_account import ServiceAccountCredentials
 import time
-import re
+import gspread
+
 
 # Add additional delay to the TIME variable if your internet speed is low. 
 TIME = 0
 
+# Download the credentials file from google cloud and save to current directory.
+# How to create credentials file? 
+# Create a new project on Google Cloud.
+# Give accesss to Google Drive API and Google Spreadsheets API.
+# Share client_mail in credentials with the Google Sheet you want to write to.
+
+#SETUP
+CREDENTIALS_FILE_NAME = 'credentials.json'
+SHEET_NAME = 'kickstarter-bot'
+EXECUTABLE_PATH = 'edgedriver_win64//msedgedriver.exe'
+
 class KickStarterBot:
     def __init__(self):
-        self.driver = webdriver.Edge(executable_path="edgedriver_win64\\msedgedriver.exe")
+        self.driver = webdriver.Edge(executable_path=EXECUTABLE_PATH)
         self.count = 0
         self.page = 1
         self.title = None
@@ -17,14 +30,26 @@ class KickStarterBot:
         self.project_launch_date = None
         self.project_successfull_date = None
         self.project_successfull_fund = None
-        self.project_location = None
         self.category = None
         self.location = None
         self.raised = None
         self.goal = None
         self.backers = None
         self.project_status = 'inprogress'
+        self.spreadsheet_setup()
         self.discover()
+
+    def spreadsheet_setup(self):
+        scope = [
+                'https://spreadsheets.google.com/feeds',
+                'https://www.googleapis.com/auth/spreadsheets',
+                'https://www.googleapis.com/auth/drive.file',
+                'https://www.googleapis.com/auth/drive'
+                ]
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(CREDENTIALS_FILE_NAME , scope)
+        client = gspread.authorize(credentials)
+        self.sheet = client.open(SHEET_NAME).sheet1
+
 
     def discover(self):
         """
@@ -144,15 +169,20 @@ class KickStarterBot:
         """
         
         raised_item = self.driver.find_elements_by_xpath('//span[@class="ksr-green-500"]')[0].text
-        self.raised = raised_item.split('$')[1]
+        try:
+           self.raised = raised_item.split('$')[1]
+        except IndexError:
+            print(link)
+            raised_item = self.driver.find_elements_by_xpath('//span[@class="ksr-green-500"]')[1].text
+            self.raised = raised_item.split('$')[1]
 
         goal_item = self.driver.find_elements_by_xpath("//span[@class='block dark-grey-500 type-12 type-14-md lh3-lg']")[0].text
-        print(goal_item)
         self.goal = goal_item.split(' ')[3]
+        
         self.backers = self.driver.find_elements_by_xpath('//div[@class="block type-16 type-28-md bold dark-grey-500"]/span')[0].text            
+        
         if(self.goal=="goal"):
             self.goal = goal_item.split(' ')[2]
-
         if(self.goal[:1]!='$'):
             self.goal = '${}'.format(self.goal)
         if(self.raised[1:]!='$'):
@@ -160,48 +190,70 @@ class KickStarterBot:
 
         return (self.goal, self.raised, self.backers)
         
+    def print_data(self, link):
+        """
+        Print data to the terminal.
+        """
+
+        print("\n\nCount: ", self.count)
+        print("URL: ", link)
+        print("Title: ", self.title)
+        print("Location: ", self.location)
+        print("Category: ", self.category)
+        print("Goal: ", self.goal)
+        print("Raised: ", self.raised)
+        print("Backers: ", self.backers)
+        print("Status: ", self.project_status)
+        print("Author : ", self.author_name)
+        print("Launch: ", self.project_launch_date)
+        if(self.project_status!="inprogress"):
+            print("Project successfull Fund: ", self.project_successfull_fund)
+        if(self.project_status!="inprogress"):
+            print("Project Status: ", self.project_successfull_date)
+
+        
+    def save_to_sheet(self, payload):
+        """
+        Saving to google spreadsheets through API
+        """
+
+        content = ['Name', 'URL', 'Author', 'Launch', 'Status',
+                   'Category', 'Location', 'Goal', 'Raised', 'Backers', 'Successful on',
+                   'Successfully funded']
+        if(self.sheet.cell(1, 1).value != "Name"):
+            self.sheet.insert_row(content, 1)
+        else:
+            self.sheet.insert_row(payload, 2)
+
     def parse(self, link):
         """
         Parsing for details. 
         """
-        print("Count: ", self.count)
+        
         self.go_to_project(link)
-        print("URL: ", link)
         self.parse_title(link)
-        print("Title: ", self.title)
         self.goal_and_raised_backers(link)
-        print("Goal: ", self.goal)
-        print("Raised: ", self.raised)
-        print("Backers: ", self.backers)
         self.parse_project_loc_cat(link)
-        print("Location: ", self.location)
-        print("Category: ", self.category)
         self.parse_update_section(link)
-        print("Status: ", self.project_status)
-        if(self.project_status!="inprogress"):
-            print("Project successfull Fund: ", self.project_successfull_fund)
-        print("Launch: ", self.project_launch_date)
-        if(self.project_status!="inprogress"):
-            print("Project Status: ", self.project_successfull_date)
         self.parse_community_section(link)
-        print("Author : ", self.author_name)
+        self.print_data(link)
 
-        payload = {
-            'url': link,
-            'title': self.title,
-            'auther': self.author_name,
-            'launched': self.project_launch_date,
-            'successfull_date': self.project_successfull_date,
-            'successfull_fund': self.project_successfull_fund,
-            'status': self.project_status,
-            'location': self.project_location,
-            'category': self.category,
-            'location': self.location,
-            'goal': self.goal,
-            'raised': self.raised,
-            'backers': self.backers
-        }
-        print(payload)
+        payload = [
+            self.title,
+            link,
+            self.author_name,
+            self.project_launch_date,
+            self.project_status,
+            self.category,
+            self.location,
+            self.goal,
+            self.raised,
+            self.backers,
+            self.project_successfull_date,
+            self.project_successfull_fund,
+        ]
+
+        self.save_to_sheet(payload)
 
 
 if __name__ == '__main__':
